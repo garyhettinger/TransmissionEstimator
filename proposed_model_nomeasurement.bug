@@ -1,0 +1,37 @@
+model {
+  lambdas[1:K] ~ ddirch(lambda.dirch.alpha[1:K])
+  w[1:s.max] = w.k %*% lambdas
+  beta.R ~ dgamma(beta.R.shape, beta.R.scale)
+  R.scale <- 1 / beta.R
+  betas.x[1] ~ dnorm(beta.0.shape, beta.0.scale)
+  for (i in 2:q) {
+    betas.x[i] ~ dnorm(betas.x.shape, betas.x.scale)
+  }
+  for (i in 1:m.phi) {
+    phis[i] ~ dnorm(phis.shape, phis.scale)
+  }
+  R.reg[1:N] <- X %*% betas.x
+  alpha.R[1] <- exp(R.reg[1]) * R.scale
+  R.ar[1,1:m.phi] <- (1:m.phi * 0)
+  R.ar.rev[1,1:m.phi] <- (1:m.phi * 0)
+  R[1] ~ dgamma(alpha.R[1], R.scale)
+  for (i in 2:N) {
+    R.ar[i,1:min(i-1,m.phi)] <- (log(R[max(i-m.phi,1):(i-1)]) - R.reg[max(i-m.phi, 1):(i-1)])
+    for (j in 1:min(i-1,m.phi)) {
+      R.ar.rev[i,j] <- R.ar[i,min(i-1,m.phi)-j+1]
+    }
+    alpha.R[i] <- exp(R.reg[i] + t(phis[1:min(i-1, m.phi)]) %*% R.ar.rev[i, 1:min(i-1,m.phi)]) * R.scale
+    R[i] ~ dgamma(alpha.R[i], R.scale)
+  }
+  I.mean[1] <- I[1]
+  I.mat[1,1:s.max] <- (1:s.max * 0)
+  I.mat.rev[1,1:s.max] <- (1:s.max * 0)
+  for (i in 2:N) {
+    I.mat[i,1:min(i-1, s.max)] <- I[max(i-s.max, 1):(i-1)]
+    for (j in 1:min(i-1,s.max)) {
+      I.mat.rev[i,j] <- I.mat[i,min(i-1,s.max)-j+1]
+    }
+    I.mean[i] <- R[i] * (t(w[1:min(i-1, s.max)]) %*% I.mat.rev[i, 1:min(i-1, s.max)])
+    I[i] ~ dpois(I.mean[i])
+  }
+}
